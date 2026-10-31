@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>SAFU Defense - CZ bảo vệ Binance</title>
+<style>
+body { margin:0; background:#000; color:#F0B90B; font-family: Arial, sans-serif; overflow:hidden; }
+#login { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; background:rgba(0,0,0,0.85); padding:40px; border:3px solid #F0B90B; border-radius:15px; z-index:10; }
+#login input { padding:10px; font-size:18px; margin:10px; width:250px; }
+#login button { padding:12px 30px; font-size:18px; background:#F0B90B; color:#000; border:none; cursor:pointer; font-weight:bold; border-radius:8px; }
+canvas { display:block; background:#050505; }
+#ui { position:absolute; top:10px; left:10px; font-size:20px; text-shadow:2px 2px #000; }
+#gameover { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; background:rgba(0,0,0,0.9); padding:40px; border:3px solid #ff4444; display:none; z-index:10; border-radius:15px; }
+</style>
+</head>
+<body>
+<div id="login">
+  <h1>🛡️ SAFU DEFENSE 🛡️</h1>
+  <p>CZ cầm khiên SAFU bảo vệ Binance khỏi hacker!</p>
+  <input type="text" id="nameInput" placeholder="Nhập tên của bạn" maxlength="20">
+  <br>
+  <button onclick="startGame()">Bắt đầu chơi</button>
+</div>
+<div id="ui"></div>
+<div id="gameover">
+  <h1>GAME OVER</h1>
+  <p id="finalScore"></p>
+  <button onclick="location.reload()">Chơi lại</button>
+</div>
+<canvas id="game"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W, H;
+function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+window.onresize = resize; resize();
+
+let playerName = 'Player';
+let playing = false;
+let score = 0;
+let wave = 1;
+let health = 100;
+let highscore = localStorage.getItem('safuHigh') || 0;
+let shieldX = W/2;
+let bullets = [];
+let particles = [];
+let spawnTimer = 0;
+let waveTimer = 0;
+
+function startGame() {
+  const name = document.getElementById('nameInput').value.trim();
+  if (name) playerName = name;
+  document.getElementById('login').style.display = 'none';
+  playing = true;
+  score = 0; wave = 1; health = 100; bullets = [];
+  shieldX = W/2;
+  loop();
+}
+
+canvas.addEventListener('mousemove', e => { if (playing) shieldX = e.clientX; });
+canvas.addEventListener('touchmove', e => { e.preventDefault(); if (playing) shieldX = e.touches[0].clientX; }, {passive:false});
+
+function spawnBullet() {
+  const x = Math.random() * W;
+  const speed = 2.2 + wave * 0.45 + Math.random()*1.8;
+  bullets.push({x, y: -40, r: 10 + Math.random()*10, speed, type: Math.random() > 0.75 ? 'big' : 'normal'});
+}
+
+function update() {
+  if (!playing) return;
+  spawnTimer++;
+  if (spawnTimer > Math.max(18, 55 - wave*3)) {
+    spawnBullet();
+    spawnTimer = 0;
+  }
+  waveTimer++;
+  if (waveTimer > 1500) {
+    wave++;
+    waveTimer = 0;
+    score += 150 * wave;
+  }
+
+  for (let i = bullets.length-1; i >= 0; i--) {
+    const b = bullets[i];
+    b.y += b.speed;
+    const shieldY = H - 170;
+    const shieldW = 200;
+    if (b.y > shieldY - 50 && b.y < shieldY + 50 && Math.abs(b.x - shieldX) < shieldW/2) {
+      score += 12 + wave * 2;
+      for (let p=0; p<10; p++) particles.push({x:b.x, y:b.y, vx:(Math.random()-0.5)*8, vy:(Math.random()-0.5)*8, life:35, color:'#F0B90B'});
+      bullets.splice(i,1);
+      continue;
+    }
+    if (b.y > H - 70) {
+      health -= b.type === 'big' ? 18 : 9;
+      bullets.splice(i,1);
+      if (health <= 0) {
+        health = 0;
+        gameOver();
+      }
+    }
+  }
+  for (let i = particles.length-1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.life--;
+    if (p.life <= 0) particles.splice(i,1);
+  }
+}
+
+function drawShield(x, y) {
+  ctx.save();
+  ctx.fillStyle = '#F0B90B';
+  ctx.beginPath();
+  ctx.moveTo(x, y - 20);
+  ctx.lineTo(x - 95, y + 140);
+  ctx.quadraticCurveTo(x, y + 170, x + 95, y + 140);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 5;
+  ctx.stroke();
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.moveTo(x, y + 30);
+  ctx.lineTo(x - 25, y + 55);
+  ctx.lineTo(x, y + 80);
+  ctx.lineTo(x + 25, y + 55);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#F0B90B';
+  ctx.font = 'bold 16px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('SAFU', x, y + 110);
+  ctx.restore();
+}
+
+function drawCZ(x, y) {
+  ctx.fillStyle = '#222';
+  ctx.fillRect(x - 25, y + 20, 50, 70);
+  ctx.fillStyle = '#f5d0a9';
+  ctx.beginPath();
+  ctx.arc(x, y, 22, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.fillRect(x - 12, y - 8, 24, 6);
+  ctx.fillStyle = '#333';
+  ctx.fillRect(x - 18, y - 28, 36, 12);
+}
+
+function draw() {
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#0a0a12';
+  ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle = 'rgba(240,185,11,0.15)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < W; i += 40) {
+    ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,H); ctx.stroke();
+  }
+  for (let i = 0; i < H; i += 40) {
+    ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(W,i); ctx.stroke();
+  }
+
+  ctx.fillStyle = '#F0B90B';
+  ctx.font = 'bold 48px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('BINANCE', W/2, H - 50);
+  ctx.font = 'bold 20px Arial';
+  ctx.fillText('PROTECTED BY SAFU', W/2, H - 25);
+
+  ctx.fillStyle = '#222';
+  ctx.fillRect(W/2 - 160, H - 95, 320, 22);
+  ctx.fillStyle = health > 30 ? '#F0B90B' : '#ff3333';
+  ctx.fillRect(W/2 - 160, H - 95, 320 * (health/100), 22);
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(W/2 - 160, H - 95, 320, 22);
+
+  bullets.forEach(b => {
+    ctx.fillStyle = b.type === 'big' ? '#ff2222' : '#ff5555';
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+
+  particles.forEach(p => {
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = p.life/35;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 5, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+
+  const sy = H - 240;
+  drawCZ(shieldX, sy - 10);
+  drawShield(shieldX, sy + 40);
+
+  document.getElementById('ui').innerHTML = `
+    <b>${playerName}</b><br>
+    Wave: ${wave} | Score: ${score}<br>
+    Highscore: ${highscore}<br>
+    Health: ${Math.max(0,health)}%
+  `;
+}
+
+function gameOver() {
+  playing = false;
+  if (score > highscore) {
+    highscore = score;
+    localStorage.setItem('safuHigh', highscore);
+  }
+  document.getElementById('finalScore').innerHTML = `
+    ${playerName}<br>Score: ${score}<br>Wave đạt được: ${wave}<br>Highscore: ${highscore}
+  `;
+  document.getElementById('gameover').style.display = 'block';
+}
+
+function loop() {
+  update();
+  draw();
+  if (playing) requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
